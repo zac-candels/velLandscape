@@ -92,7 +92,7 @@ def objective_sk(params):
 
 
 def run_skopt():
-    n_calls = 100 # Number of function evaluations
+    n_calls = 200 # Number of function evaluations
     
     xi=0.01 # controls exploration vs exploitation
     # Default value of xi is 0.01
@@ -103,7 +103,7 @@ def run_skopt():
         acq_func='EI',
         n_initial_points=20,
         n_calls=n_calls, 
-        random_state=41,
+        random_state=48,
         callback=[print_best_so_far],
          xi=xi)
          
@@ -138,9 +138,9 @@ surf = ax.plot_surface(Theta, PostFrac, F_grid, cmap='viridis', edgecolor='none'
 
 # Labels and title
 ax.set_xlabel(r'$\theta_E$')
-ax.set_ylabel('postFraction')
-ax.set_zlabel('Apparent Contact Angle')
-fig.colorbar(surf, ax=ax, shrink=0.5, aspect=8, label=r'$\theta_{app}$')
+ax.set_ylabel(r'$P_f$')
+ax.set_zlabel('Mean velocity')
+fig.colorbar(surf, ax=ax, shrink=0.5, aspect=8, label=r'$\bar{\mathbf{u}}$')
 
 plt.tight_layout()
 plt.show()
@@ -149,8 +149,10 @@ plt.show()
 fig, ax = plt.subplots()
 #Plot surface
 #surf = ax.plot_surface(Theta, PostFrac, F_grid, cmap='viridis', edgecolor='none')
-contour = ax.contour(Theta, PostFrac, F_grid, levels=8) 
+contour = ax.contour(Theta, PostFrac, F_grid, levels=10) 
 ax.clabel(contour, fontsize=10)
+ax.set_xlabel(r'$\theta_E$')
+ax.set_ylabel(r'$P_f$')
 
 # Build smooth interpolating function using Radial Basis Functions
 rbf = Rbf(theta, postFrac, f, function='linear', smooth=1e-2)
@@ -171,3 +173,11 @@ f_max = F_interp[max_index]
 
 print(f"Maximum interpolated value: {f_max:.6e}")
 print(f"At theta = {theta_max:.3f}, postFrac = {postFrac_max:.3f}")
+
+
+fig, ax = plt.subplots()
+vel = interp(110, postFrac_grid)
+ax.plot(postFrac_grid, vel)
+ax.set_xlabel(r'$P_f$')
+ax.set_ylabel(r'$\bar{u}$')
+ax.set_title(r'$\bar{u}(110, P_f)$')
