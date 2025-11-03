@@ -20,11 +20,12 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import Rbf
 from io import StringIO
 import numpy as np
+from scipy.interpolate import CloughTocher2DInterpolator
 
 import warnings
 warnings.filterwarnings("ignore")
 
-data_file = open("velLandscape_lx128_pts25.txt", "r")
+data_file = open("CA_landscape.txt", "r")
 data_str = data_file.read()
 
 # Convert to numpy array
@@ -43,11 +44,14 @@ Theta, PostFrac = np.meshgrid(theta_grid, postFrac_grid)
 # Interpolate data onto grid
 F_grid = griddata((theta, postFrac), f, (Theta, PostFrac), method='cubic')
 
-# Build smooth interpolating function using Radial Basis Functions
-rbf = Rbf(theta, postFrac, f, function='multiquadric', smooth=0)
+interp = CloughTocher2DInterpolator(list(zip(theta, postFrac)), f)
+
+def CA_interp(theta, postFrac):
+    val = interp(theta, postFrac)
+    return val
 
 # Define search space bounds
-bounds = torch.tensor([[80, 0.1], [100, 0.9]])
+bounds = torch.tensor([[30, 0.2], [130, 0.8]])
 
 input_tf = Normalize(
     d=2,                        # dimension of input
@@ -65,7 +69,7 @@ def objective(X: torch.Tensor) -> torch.Tensor:
         x0 = float(x[0].item())
         x1 = float(x[1].item())
 
-        val = float(rbf(x0, x1))
+        val = float(CA_interp(x0, x1))
 
         # store the *negative* of the objective
         results.append(val)
@@ -78,12 +82,12 @@ def objective(X: torch.Tensor) -> torch.Tensor:
 torch.manual_seed(10)
 
 # Initialize with random points
-n_init = 20
+n_init = 30
 X = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(n_init, 2)
 Y = objective(X)
 
 # Optimization loop parameters
-n_iterations = 2
+n_iterations = 100
 batch_size = 4
 
 # Optimization loop
@@ -100,15 +104,15 @@ for i in range(n_iterations):
     
     # Define the q-EI acquisition function
     best_f = Y.max().item()
-    qEI = qLogExpectedImprovement(gp, best_f=best_f)
+    qEI = qExpectedImprovement(gp, best_f=best_f)
     
     # Optimize the acquisition function to get the next batch of points
     candidates, _ = optimize_acqf(
         qEI,
         bounds=bounds,
         q=batch_size,
-        num_restarts=20,
-        raw_samples=2000,
+        num_restarts=200,
+        raw_samples=40000,
     )
     
     # Evaluate the objective at the new points
@@ -119,11 +123,21 @@ for i in range(n_iterations):
     Y = torch.cat([Y, new_Y], dim=0)
     
     # Print progress
-    print(f"Iteration {i+1}, Best observed value: {Y.max().item():.6f}")
+    current_params = candidates[-1]
+    theta, postFrac = current_params
+    
     best_idx = Y.argmax()
     best_X = X[best_idx]
     best_Y = Y[best_idx]
-    print(f"Best point found: ({best_X[0]:.4f}, {best_X[1]:.4f})\n\n")
+    
+    best_theta, best_postFrac = best_X
+    print(f"Iteration {i+1}, Best value in current iteration: {new_Y[-1].item():.6f} at (theta={theta:.3f}, postFrac={postFrac:.3f})\n")
+    print(f"Iteration {i+1}, Best value (all iterations): {Y.max().item():.6f} at theta=({best_theta:.3f}, {best_postFrac:.3f})\n")
+    
+    error_percent = 100*abs( Y.max().item() - 168.7883) / 168.7883
+    print("percent error =", error_percent,"%\n\n\n")
+    
+    {}
 
 # Report the final result
 best_idx = Y.argmax()
@@ -160,16 +174,13 @@ fig.colorbar(surf, ax=ax, shrink=0.5, aspect=8, label='velocity')
 plt.tight_layout()
 plt.show()
 
-# Build smooth interpolating function using Radial Basis Functions
-rbf = Rbf(theta, postFrac, f, function='multiquadric', smooth=0)
-
 # Create fine grid
 theta_grid = np.linspace(theta.min(), theta.max(), 500)
 postFrac_grid = np.linspace(postFrac.min(), postFrac.max(), 500)
 Theta, PostFrac = np.meshgrid(theta_grid, postFrac_grid)
 
 # Evaluate interpolating function
-F_interp = rbf(Theta, PostFrac)
+F_interp = CA_interp(Theta, PostFrac)
 
 # Find maximum
 max_index = np.unravel_index(np.argmax(F_interp), F_interp.shape)
