@@ -127,8 +127,8 @@ data_str = data_file.read()
 data = np.loadtxt(StringIO(data_str), delimiter=",")
 
 # Extract columns
-theta = data[:,0]
-postFrac = data[:,1]
+theta_BO_iteration = data[:,0]
+postFrac_BO_iteration = data[:,1]
 
 # Create grid for interpolation
 theta_grid = np.linspace(theta.min(), theta.max(), 100)
@@ -148,8 +148,17 @@ ax.clabel(contour, fontsize=10)
 ax.set_xlabel(r'$\theta_E$')
 ax.set_ylabel(r'$P_f$')
 
-for i in range(len(theta)):
-    ax.scatter(theta[i], postFrac[i])
+for i in range(len(postFrac_BO_iteration)):
+    ax.scatter(theta_BO_iteration[i], postFrac_BO_iteration[i], color='red')
+    ax.annotate(
+        str(i+1),                 # Text (the index)
+        (theta_BO_iteration[i], postFrac_BO_iteration[i]),                 # Position of the point
+        textcoords="offset points",
+        xytext=(2, 2),          # Offset in pixels
+        ha='left', va='bottom', # Alignment
+        fontsize=8, color='k'
+    )
+plt.show()
 
 # Build smooth interpolating function using Radial Basis Functions
 rbf = Rbf(theta, postFrac, f, function='linear', smooth=1e-2)
@@ -161,15 +170,6 @@ Theta, PostFrac = np.meshgrid(theta_grid, postFrac_grid)
 
 # Evaluate interpolating function
 F_interp = interp(Theta, PostFrac)
-
-# Find maximum
-max_index = np.unravel_index(np.argmax(F_interp), F_interp.shape)
-theta_max = Theta[max_index]
-postFrac_max = PostFrac[max_index]
-f_max = F_interp[max_index]
-
-print(f"Maximum interpolated value: {f_max:.6e}")
-print(f"At theta = {theta_max:.3f}, postFrac = {postFrac_max:.3f}")
 
 
 fig, ax = plt.subplots()
